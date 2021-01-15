@@ -602,10 +602,13 @@ Percentage of the requests served within a certain time (ms)
 
 **串行GC**
 ![img_5.png](img_5.png)
+
 **并行GC**
 ![img_4.png](img_4.png)
+
 **CMS GC**
 ![img_3.png](img_3.png)
+
 **G1**
 ![img_6.png](img_6.png)
 
