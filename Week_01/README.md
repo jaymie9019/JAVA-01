@@ -576,8 +576,11 @@ Percentage of the requests served within a certain time (ms)
 * 99线的响应时间
 
 串行GC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseSerialGC -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
+
 并行GC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseParallelGC -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
+
 使用CMSGC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseConcMarkSweepGC -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
+
 使用G1 `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseG1GC -XX:MaxGCPauseMillis=50 -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
 
 
