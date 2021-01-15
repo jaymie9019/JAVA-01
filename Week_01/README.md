@@ -1,4 +1,4 @@
-作业
+### 第一课作业
 1. 自己写一个简单的Hello.java，里面需要涉及基本类型，四则运算，if和for，然后自己分析一下对应的字节码
 
 原文件见 src/task1/Hello.class
@@ -222,6 +222,439 @@ SourceFile: "Hello.java"
     * 对于线上有流量的系统，慎重使用jmap命令
     * 如果没有线上系统，可以自己 run 一个 web/java 项目，或者查看idea进程
    
-晚点再做
 
-    
+### 第二课作业
+
+1.（选做）本机使用 G1 GC 启动一个程序，仿照课上案例分析一下 JVM 情况。
+可以使用 gateway-server-0.0.1-SNAPSHOT.jar 注意关闭自适应参数:-XX:-UseAdaptiveSizePolicy
+
+#### 实验环境：
+macos，jdk11.0.6
+
+#### 实验1
+首先不加任何jvm参数运行
+
+`java -jar gateway-server-0.0.1-SNAPSHOT.jar`
+
+使用`jinfo`查看jvm参数设置
+
+```text
+VM Flags:
+-XX:CICompilerCount=4 
+-XX:ConcGCThreads=3 
+-XX:G1ConcRefinementThreads=10 
+-XX:G1HeapRegionSize=2097152 
+-XX:GCDrainStackTargetSize=64 
+-XX:InitialHeapSize=536870912 
+-XX:MarkStackSize=4194304 
+-XX:MaxHeapSize=8589934592 
+-XX:MaxNewSize=5152702464 
+-XX:MinHeapDeltaBytes=2097152 
+-XX:NonNMethodCodeHeapSize=5836300 
+-XX:NonProfiledCodeHeapSize=122910970 
+-XX:ProfiledCodeHeapSize=122910970 
+-XX:ReservedCodeCacheSize=251658240 
+-XX:+SegmentedCodeCache 
+-XX:+UseCompressedClassPointers 
+-XX:+UseCompressedOops 
+-XX:+UseG1GC  //可以看到默认的GC策略是G1GC
+```
+
+使用`jmap`查看堆内存情况  `jhsdb jmap --heap --pid 42721`
+
+```text
+Heap Configuration:
+   MinHeapFreeRatio         = 40
+   MaxHeapFreeRatio         = 70
+   MaxHeapSize              = 8589934592 (8192.0MB)  //最大堆内存正好8G
+   NewSize                  = 1363144 (1.2999954223632812MB)  // 初始young区内存
+   MaxNewSize               = 5152702464 (4914.0MB)           // 最大young去内存 4.78G
+   OldSize                  = 5452592 (5.1999969482421875MB)  // 初始old区内存
+   NewRatio                 = 2                               // 年轻代与老年代在堆结构的占比为2，即eden:old为1:2，所以占整个堆内存的1/3          
+   SurvivorRatio            = 8                               // survivor区和eden区的比例，1:8,即s占整个yong的 1/9
+   MetaspaceSize            = 21807104 (20.796875MB)         // Metaspace初始大小
+   CompressedClassSpaceSize = 1073741824 (1024.0MB)
+   MaxMetaspaceSize         = 17592186044415 MB             // Metaspace可以认为没有上限
+   G1HeapRegionSize         = 2097152 (2.0MB)
+
+Heap Usage:
+G1 Heap:
+   regions  = 4096
+   capacity = 8589934592 (8192.0MB)
+   used     = 153717504 (146.596435546875MB)
+   free     = 8436217088 (8045.403564453125MB)
+   1.789507269859314% used
+G1 Young Generation:
+Eden Space:
+   regions  = 67
+   capacity = 161480704 (154.0MB)
+   used     = 140509184 (134.0MB)
+   free     = 20971520 (20.0MB)
+   87.01298701298701% used
+Survivor Space:
+   regions  = 7
+   capacity = 14680064 (14.0MB)
+   used     = 14680064 (14.0MB)
+   free     = 0 (0.0MB)
+   100.0% used
+G1 Old Generation:
+   regions  = 0
+   capacity = 360710144 (344.0MB)
+   used     = 0 (0.0MB)
+   free     = 360710144 (344.0MB)
+   0.0% used
+```
+
+上面参数可以知道，JDK11的默认GC是`G1GC`，另外我的物理机是32G，但是他设置的最大堆内存为8G。最大Young区的内存是最大堆内存的 4.78个G，不知道怎么计算的
+
+#### 实验2
+指定串行GC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseSerialGC -jar gateway-server-0.0.1-SNAPSHOT.jar`
+
+使用jinfo，`jinfo -flags 45972`
+
+```text
+-XX:CICompilerCount=4 
+-XX:InitialHeapSize=1073741824  // 初始堆内存 1024M, 1G
+-XX:MaxHeapSize=1073741824      // 最大堆内存 1024M, 1G
+-XX:MaxNewSize=357892096        // 最大young区，341.3125M，正好占比1/3
+-XX:NewSize=357892096           // 初始的young区，也是 341.3125M
+-XX:OldSize=715849728           // 初始old区，682.6875M，剩下1/3
+-XX:MinHeapDeltaBytes=196608    // 堆内存每次扩充的最小值 192.0M
+-XX:NonNMethodCodeHeapSize=5836300 
+-XX:NonProfiledCodeHeapSize=122910970 
+-XX:ProfiledCodeHeapSize=122910970 
+-XX:ReservedCodeCacheSize=251658240 
+-XX:+SegmentedCodeCache 
+-XX:-UseAdaptiveSizePolicy 
+-XX:+UseCompressedClassPointers 
+-XX:+UseCompressedOops 
+-XX:+UseSerialGC   // 使用了指定的 SerialGC 
+```
+
+使用 `jhsdb jmap --heap --pid 45972`
+```text
+Heap Configuration:
+   MinHeapFreeRatio         = 40
+   MaxHeapFreeRatio         = 70
+   MaxHeapSize              = 1073741824 (1024.0MB) // 这部分的数据与上面的参数配置是一致的
+   NewSize                  = 357892096 (341.3125MB)
+   MaxNewSize               = 357892096 (341.3125MB)
+   OldSize                  = 715849728 (682.6875MB)
+   NewRatio                 = 2     // old和new的占比2:1
+   SurvivorRatio            = 8     // eden 和 s区的占比 8:1
+   MetaspaceSize            = 21807104 (20.796875MB)
+   CompressedClassSpaceSize = 1073741824 (1024.0MB)
+   MaxMetaspaceSize         = 17592186044415 MB
+   G1HeapRegionSize         = 0 (0.0MB)
+
+Heap Usage:
+New Generation (Eden + 1 Survivor Space):
+   capacity = 322109440 (307.1875MB)
+   used     = 176755912 (168.56757354736328MB)
+   free     = 145353528 (138.61992645263672MB)
+   54.87448986282426% used
+Eden Space:        // 这里可以看到，Eden区的容量 / From Space的容量，正好是 8:1
+   capacity = 286326784 (273.0625MB)
+   used     = 176755912 (168.56757354736328MB)
+   free     = 109570872 (104.49492645263672MB)
+   61.73223109997282% used
+From Space:
+   capacity = 35782656 (34.125MB)
+   used     = 0 (0.0MB)
+   free     = 35782656 (34.125MB)
+   0.0% used
+To Space:
+   capacity = 35782656 (34.125MB)
+   used     = 0 (0.0MB)
+   free     = 35782656 (34.125MB)
+   0.0% used
+tenured generation:
+   capacity = 715849728 (682.6875MB)
+   used     = 11405416 (10.877052307128906MB)
+   free     = 704444312 (671.8104476928711MB)
+   1.593269586323011% used
+```
+
+#### 实验3
+使用并行GC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseParallelGC -jar gateway-server-0.0.1-SNAPSHOT.jar`
+
+
+`jinfo -flags 46494`
+```text
+-XX:CICompilerCount=4 
+-XX:InitialHeapSize=1073741824 
+-XX:MaxHeapSize=1073741824 
+-XX:MaxNewSize=357564416 
+-XX:MinHeapDeltaBytes=524288 
+-XX:NewSize=357564416 
+-XX:NonNMethodCodeHeapSize=5836300 
+-XX:NonProfiledCodeHeapSize=122910970 
+-XX:OldSize=716177408 
+-XX:ProfiledCodeHeapSize=122910970 
+-XX:ReservedCodeCacheSize=251658240 
+-XX:+SegmentedCodeCache 
+-XX:-UseAdaptiveSizePolicy 
+-XX:+UseCompressedClassPointers 
+-XX:+UseCompressedOops 
+-XX:+UseParallelGC
+```
+
+`jhsdb jmap --heap --pid 46494`
+
+```text
+Heap Configuration:
+   MinHeapFreeRatio         = 40
+   MaxHeapFreeRatio         = 70
+   MaxHeapSize              = 1073741824 (1024.0MB)
+   NewSize                  = 357564416 (341.0MB)
+   MaxNewSize               = 357564416 (341.0MB)
+   OldSize                  = 716177408 (683.0MB)
+   NewRatio                 = 2
+   SurvivorRatio            = 8
+   MetaspaceSize            = 21807104 (20.796875MB)
+   CompressedClassSpaceSize = 1073741824 (1024.0MB)
+   MaxMetaspaceSize         = 17592186044415 MB
+   G1HeapRegionSize         = 0 (0.0MB)
+
+Heap Usage:
+PS Young Generation
+Eden Space:
+   capacity = 268435456 (256.0MB)
+   used     = 171112448 (163.185546875MB)
+   free     = 97323008 (92.814453125MB)
+   63.744354248046875% used
+From Space:
+   capacity = 44564480 (42.5MB)
+   used     = 0 (0.0MB)
+   free     = 44564480 (42.5MB)
+   0.0% used
+To Space:
+   capacity = 44564480 (42.5MB)
+   used     = 0 (0.0MB)
+   free     = 44564480 (42.5MB)
+   0.0% used
+PS Old Generation
+   capacity = 716177408 (683.0MB)
+   used     = 11028304 (10.517410278320312MB)
+   free     = 705149104 (672.4825897216797MB)
+   1.539884374571056% used
+```
+
+内存使用上的的设置看起来跟串行GC没有区别
+
+#### 实验四
+
+使用CMSGC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseConcMarkSweepGC -jar gateway-server-0.0.1-SNAPSHOT.jar`
+
+`jinfo`查看jvm参数
+
+```text
+-XX:CICompilerCount=4 
+-XX:InitialHeapSize=1073741824 
+-XX:MaxHeapSize=1073741824 
+-XX:MaxNewSize=357892096
+-XX:MaxTenuringThreshold=6 
+-XX:MinHeapDeltaBytes=196608 
+-XX:NewSize=357892096 
+-XX:NonNMethodCodeHeapSize=5836300 
+-XX:NonProfiledCodeHeapSize=122910970 
+-XX:OldSize=715849728 
+-XX:ProfiledCodeHeapSize=122910970 
+-XX:ReservedCodeCacheSize=251658240 
+-XX:+SegmentedCodeCache 
+-XX:-UseAdaptiveSizePolicy 
+-XX:+UseCompressedClassPointers 
+-XX:+UseCompressedOops 
+-XX:+UseConcMarkSweepGC // 使用CMS GC 策略
+```
+
+`jmap`查看内存
+
+```text
+using thread-local object allocation.
+Concurrent Mark-Sweep GC
+
+Heap Configuration:
+   MinHeapFreeRatio         = 40
+   MaxHeapFreeRatio         = 70
+   MaxHeapSize              = 1073741824 (1024.0MB)
+   NewSize                  = 357892096 (341.3125MB)
+   MaxNewSize               = 357892096 (341.3125MB)
+   OldSize                  = 715849728 (682.6875MB)
+   NewRatio                 = 2
+   SurvivorRatio            = 8
+   MetaspaceSize            = 21807104 (20.796875MB)
+   CompressedClassSpaceSize = 1073741824 (1024.0MB)
+   MaxMetaspaceSize         = 17592186044415 MB
+   G1HeapRegionSize         = 0 (0.0MB)
+
+Heap Usage:
+New Generation (Eden + 1 Survivor Space):
+   capacity = 322109440 (307.1875MB)
+   used     = 223130336 (212.79367065429688MB)
+   free     = 98979104 (94.39382934570312MB)
+   69.27159166772636% used
+Eden Space:
+   capacity = 286326784 (273.0625MB)
+   used     = 212477608 (202.63443756103516MB)
+   free     = 73849176 (70.42806243896484MB)
+   74.20807967444638% used
+From Space:
+   capacity = 35782656 (34.125MB)
+   used     = 10652728 (10.159233093261719MB)
+   free     = 25129928 (23.96576690673828MB)
+   29.77064642714057% used
+To Space:
+   capacity = 35782656 (34.125MB)
+   used     = 0 (0.0MB)
+   free     = 35782656 (34.125MB)
+   0.0% used
+concurrent mark-sweep generation:
+   capacity = 715849728 (682.6875MB)
+   used     = 0 (0.0MB)
+   free     = 715849728 (682.6875MB)
+   0.0% used
+```
+
+内存分配上和并行以及串行上都一样看起来
+
+
+上述实验，当jvm的 -Xmx1g -Xms1g 参数都一样的时候，除了G1 GC，其他GC，串行，并行以及cms，他们的堆空间分配是完全一样的
+
+
+### 进行GC和压测实验
+实验说明，我们使用apache ab进行压力测试，请求1000次，并发100，看GC情况，以及受到影响的一些性能指标，主要保证1000次请求中一定触发了一次YoungGC
+
+#### 实验一，JIT特性对接过的影响
+jvm存在JIT特性，可以对比刚开始的情况和多次压测之后的情况，使用串行GC测试
+串行GC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseSerialGC -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
+
+![img_1.png](img_1.png)
+
+上图所示，进行了多次测试，第一次FullGC是程序启动时导致的，不用关注，剩下几次均为YoungGC，每执行一次均会触发 YoungGC
+
+首先可以观察到的是每次GC差不多都是从 297M -> 24M，但是GC的耗时在不断的减少，不知道为什么。
+
+然后看压测结果,选两组进行观看
+```text
+# 第一次测试
+Time per request:       13.667 [ms] (mean)  // 每100次并发请求的平均响应时间
+Time per request:       0.137 [ms] (mean, across all concurrent requests) // 每个请求的响应平均时间
+
+  50%     11
+  66%     12
+  75%     13
+  80%     14
+  90%     18
+  95%     21
+  98%     43
+  99%     50    // 99线，即99%的请求都可以在50ms内返回
+ 100%    116 (longest request)
+
+# 最后一次测试
+Time per request:       6.402 [ms] (mean)
+Time per request:       0.064 [ms] (mean, across all concurrent requests)
+
+Percentage of the requests served within a certain time (ms)
+  50%      6
+  66%      7
+  75%      8
+  80%      8
+  90%      8
+  95%      9
+  98%      9
+  99%     14  // 只要14ms
+ 100%     16 (longest request)
+```
+
+可以看出时间明显小了一半，这依赖于JVM的JIT特性，即当某一个方法执行次数过多时，jvm就会把他编译成机器码保存起来，这样子执行会更快
+
+#### 实验2 不同GC策略
+主要对比以下几个指标，并且都经过了预热
+* 垃圾回收的时间
+* 接口平均响应时间
+* 99线的响应时间
+
+串行GC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseSerialGC -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
+并行GC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseParallelGC -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
+使用CMSGC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseConcMarkSweepGC -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
+使用G1 `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseG1GC -XX:MaxGCPauseMillis=50 -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
+
+
+##### 对比GC时间
+```text
+# 串行GC
+285M->29M(989M)  13.13ms
+
+# 并行GC
+285M->29M(981M) 4.280ms
+
+# CMS
+298M->25M(989M) 1.461ms
+
+# G1
+639M->26M(1024M) 1.964ms
+```
+
+从垃圾回收的速度来看，表现排名，CMS > G1 > 并行GC > 串行GC
+
+截图如下
+
+**串行GC**
+![img_5.png](img_5.png)
+**并行GC**
+![img_4.png](img_4.png)
+**CMS GC**
+![img_3.png](img_3.png)
+**G1**
+![img_6.png](img_6.png)
+
+
+
+##### 对比平均响应时间
+```text
+# 串行GC 
+Time per request:       6.402 [ms] (mean) // 100次并发请求的响应时间
+Time per request:       0.064 [ms] (mean, across all concurrent requests)
+
+// 并行gc
+Time per request:       6.745 [ms] (mean)
+Time per request:       0.067 [ms] (mean, across all concurrent requests)
+
+// CMS
+Time per request:       16.568 [ms] (mean)
+Time per request:       0.166 [ms] (mean, across all concurrent requests)
+
+// G1
+Time per request:       14.553 [ms] (mean)
+Time per request:       0.146 [ms] (mean, across all concurrent requests
+```
+
+从平均响应时间的表现来看
+串行GC > 并行GC > G1 > CMS
+
+
+
+#### 99线
+```text
+# 串行GC 预热后的表现
+99%     14  
+
+# 并行GC
+99%     11
+
+# CMS
+99%      8
+
+# G1
+99%     11
+```
+
+从99线表现来看
+CMS > G1 ≈ 并行 > 串行
+
+
+最终结论
+1. GC速度越慢的算法，他的平均响应时间越快？这是为什么被平均了？
+2. GC速度越快的算法，吞吐量越好，因为99线比较低
+
