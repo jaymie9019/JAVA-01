@@ -525,7 +525,7 @@ concurrent mark-sweep generation:
 ### 进行GC和压测实验
 实验说明，我们使用apache ab进行压力测试，请求1000次，并发100，看GC情况，以及受到影响的一些性能指标，主要保证1000次请求中一定触发了一次YoungGC
 
-#### 实验一，JIT特性对接过的影响
+#### 实验一，JIT特性对结果的影响
 jvm存在JIT特性，可以对比刚开始的情况和多次压测之后的情况，使用串行GC测试
 串行GC `java -Xmx1g -Xms1g -XX:-UseAdaptiveSizePolicy -XX:+UseSerialGC -verbose:gc -jar gateway-server-0.0.1-SNAPSHOT.jar`
 
